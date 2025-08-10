@@ -1,0 +1,50 @@
+[project]
+name = "photo-organizer"
+version = "0.1.0"
+description = "A tool to safely rename and organize photos based on metadata"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "pillow>=10.0.0",
+    "exifread>=3.0.0",
+    "click>=8.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+]
+
+[project.scripts]
+photo-organizer = "photo_organizer.main:main"
+
+[project.urls]
+Homepage = "https://github.com/user/photo-organizer"
+Repository = "https://github.com/user/photo-organizer"
+Issues = "https://github.com/user/photo-organizer/issues"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 88
+select = ["E", "F", "W", "C", "N"]
+
+[tool.black]
+line-length = 88
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=photo_organizer --cov-report=term-missing"
+
+[dependency-groups]
+dev = [
+    "black>=25.1.0",
+    "pytest>=8.4.1",
+    "pytest-cov>=6.2.1",
+    "ruff>=0.12.8",
+]
