@@ -56,7 +56,8 @@ def test_mark_and_check_processed_file(organizer, sample_jpg, temp_dir):
     target_path = temp_dir / "archive" / "processed.jpg"
     
     # Mark as processed
-    organizer._mark_as_processed(sample_jpg, checksum, target_path)
+    file_size = sample_jpg.stat().st_size
+    organizer._mark_as_processed(sample_jpg, checksum, target_path, file_size)
     
     # Should now be detected as processed
     is_processed, stored_target = organizer._is_already_processed(sample_jpg)

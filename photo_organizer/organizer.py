@@ -80,7 +80,7 @@ class PhotoOrganizer:
         
         return False, None
     
-    def _mark_as_processed(self, original_path: Path, checksum: str, new_path: Path):
+    def _mark_as_processed(self, original_path: Path, checksum: str, new_path: Path, file_size: int):
         """Mark file as processed in database"""
         conn = sqlite3.connect(self.processed_files_db)
         conn.execute("""
@@ -92,7 +92,7 @@ class PhotoOrganizer:
             checksum, 
             str(new_path), 
             datetime.now().isoformat(),
-            original_path.stat().st_size
+            file_size
         ))
         conn.commit()
         conn.close()
@@ -196,8 +196,9 @@ class PhotoOrganizer:
             
             result['target_path'] = str(target_path)
             
-            # Calculate checksum before operation
+            # Calculate checksum and get file size before operation
             checksum = self._get_file_checksum(file_path)
+            file_size = file_path.stat().st_size  # Get size before moving the file
             result['checksum'] = checksum
             
             # Perform the operation (move/copy) SAFELY
@@ -214,7 +215,7 @@ class PhotoOrganizer:
                     result['action'] = 'moved'
                 
                 # Mark as processed only after successful operation
-                self._mark_as_processed(file_path, checksum, target_path)
+                self._mark_as_processed(file_path, checksum, target_path, file_size)
             else:
                 result['action'] = 'dry_run'
             
@@ -225,6 +226,14 @@ class PhotoOrganizer:
             result['reason'] = str(e)
         
         return result
+    
+    def _is_inside_archive_dir(self, file_path: Path, archive_path: Path) -> bool:
+        """Check if file is inside the archive directory"""
+        try:
+            # Check if file_path is inside archive_path
+            return archive_path in file_path.parents or file_path == archive_path
+        except Exception:
+            return False
     
     def _is_in_archive_structure(self, file_path: Path) -> bool:
         """Check if file is already in the archive structure"""
@@ -259,6 +268,24 @@ class PhotoOrganizer:
         
         # Remove duplicates and sort
         files_to_process = sorted(set(files_to_process))
+        
+        # Filter out files that are inside the archive/output directory
+        archive_path = self.config.output_dir.resolve()
+        filtered_files = []
+        for file_path in files_to_process:
+            try:
+                file_path_resolved = file_path.resolve()
+                # Check if file is inside the archive directory
+                if not self._is_inside_archive_dir(file_path_resolved, archive_path):
+                    filtered_files.append(file_path)
+                else:
+                    self.logger.debug(f"Skipping file inside archive directory: {file_path}")
+            except Exception as e:
+                self.logger.warning(f"Could not resolve path for {file_path}: {e}")
+                # If we can't resolve the path, include it to be safe
+                filtered_files.append(file_path)
+        
+        files_to_process = filtered_files
         
         self.logger.info(f"Found {len(files_to_process)} files to process")
         

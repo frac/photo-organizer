@@ -155,20 +155,20 @@ class TestCriticalSafety:
         organizer.metadata_extractor.get_creation_date = lambda x: creation_date
         
         # Mock the checksum verification to simulate corruption
-        original_get_checksum = organizer._get_file_checksum
+        original_calculate_checksum = organizer.file_ops._calculate_checksum
         call_count = 0
         
-        def mock_checksum(file_path):
+        def mock_checksum(file_path, algorithm='sha256'):
             nonlocal call_count
             call_count += 1
             if call_count == 1:
                 # First call (before operation) - return correct checksum
-                return original_get_checksum(file_path)
+                return original_calculate_checksum(file_path, algorithm)
             else:
-                # Second call (verification) - return wrong checksum to simulate corruption
+                # Second call (verification of target) - return wrong checksum to simulate corruption
                 return "corrupted_checksum"
         
-        organizer._get_file_checksum = mock_checksum
+        organizer.file_ops._calculate_checksum = mock_checksum
         
         # Process file - should fail verification
         result = organizer.process_file(test_file)

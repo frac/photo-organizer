@@ -1,5 +1,5 @@
 #!/bin/bash
-# Uninstall script for photo-organizer
+# Proper uninstall script for photo-organizer
 set -e
 
 # Colors for output
@@ -25,68 +25,84 @@ print_info() {
     echo -e "$1"
 }
 
-# Default installation directories
-USER_BIN="$HOME/.local/bin"
-GLOBAL_BIN="/usr/local/bin"
+# Check if uv is installed
+check_uv() {
+    if ! command -v uv &> /dev/null; then
+        print_error "uv is not installed. Cannot uninstall photo-organizer."
+        exit 1
+    fi
+    print_success "uv is available"
+}
+
+# Check if photo-organizer is installed
+check_installed() {
+    if ! uv tool list | grep -q "photo-organizer"; then
+        print_warning "photo-organizer is not installed via uv tool install"
+        
+        # Check for legacy installations
+        if [[ -f "$HOME/.local/bin/photo-organizer" ]]; then
+            print_info "Found legacy installation at ~/.local/bin/photo-organizer"
+            print_info "Removing legacy installation..."
+            rm -f "$HOME/.local/bin/photo-organizer"
+            print_success "Removed legacy installation"
+        fi
+        
+        if [[ -f "/usr/local/bin/photo-organizer" ]]; then
+            print_info "Found legacy global installation at /usr/local/bin/photo-organizer"
+            print_info "Removing legacy global installation (requires sudo)..."
+            sudo rm -f "/usr/local/bin/photo-organizer" 2>/dev/null || print_warning "Could not remove global installation (permission denied)"
+        fi
+        
+        print_info "No uv tool installation found to remove."
+        return 1
+    fi
+    return 0
+}
+
+# Uninstall the package
+uninstall_package() {
+    print_info "Uninstalling photo-organizer..."
+    
+    if uv tool uninstall photo-organizer; then
+        print_success "Successfully uninstalled photo-organizer"
+    else
+        print_error "Failed to uninstall photo-organizer"
+        exit 1
+    fi
+}
 
 # Show usage
 show_usage() {
     cat << EOF
 Usage: $0 [OPTIONS]
 
-Uninstall photo-organizer
+Properly uninstall photo-organizer
 
 Options:
-  --user          Remove from ~/.local/bin (default)
-  --global        Remove from /usr/local/bin (requires sudo)
-  --all           Remove from both locations
+  --force         Also remove legacy installations (old wrapper scripts)
   --help          Show this help message
 
 Examples:
-  $0              # Remove from ~/.local/bin
-  $0 --user       # Remove from ~/.local/bin
-  $0 --global     # Remove from /usr/local/bin (requires sudo)
-  $0 --all        # Remove from both locations
-EOF
-}
+  $0              # Uninstall photo-organizer
+  $0 --force      # Uninstall and clean up legacy installations
 
-# Remove script from directory
-remove_from_dir() {
-    local dir=$1
-    local script_path="$dir/photo-organizer"
-    
-    if [[ -f "$script_path" ]]; then
-        if [[ "$dir" == "$GLOBAL_BIN" && ! -w "$dir" ]]; then
-            print_info "Removing from $dir (requires sudo)"
-            sudo rm -f "$script_path"
-        else
-            rm -f "$script_path"
-        fi
-        print_success "Removed $script_path"
-    else
-        print_warning "Not found: $script_path"
-    fi
+This script:
+- Uses 'uv tool uninstall photo-organizer' for proper removal
+- Cleans up the complete uv tool environment
+- Optionally removes legacy wrapper script installations
+- Does not require specifying user/global (uv handles this automatically)
+EOF
 }
 
 # Main uninstall function
 main() {
-    local remove_user=false
-    local remove_global=false
+    local remove_legacy=false
     
     # Parse arguments
     while [[ $# -gt 0 ]]; do
         case $1 in
-            --user)
-                remove_user=true
-                shift
-                ;;
-            --global)
-                remove_global=true
-                shift
-                ;;
-            --all)
-                remove_user=true
-                remove_global=true
+            --force)
+                remove_legacy=true
                 shift
                 ;;
             --help|-h)
@@ -101,28 +117,43 @@ main() {
         esac
     done
     
-    # Default to user if no options specified
-    if [[ "$remove_user" == false && "$remove_global" == false ]]; then
-        remove_user=true
-    fi
-    
-    print_info "=== Photo Organizer Uninstaller ==="
+    print_info "=== Photo Organizer Proper Uninstaller ==="
     print_info ""
     
-    # Remove from specified locations
-    if [[ "$remove_user" == true ]]; then
-        remove_from_dir "$USER_BIN"
+    # Check prerequisites
+    check_uv
+    
+    # Check if installed and uninstall
+    if check_installed; then
+        uninstall_package
     fi
     
-    if [[ "$remove_global" == true ]]; then
-        remove_from_dir "$GLOBAL_BIN"
+    # Remove legacy installations if requested
+    if [[ "$remove_legacy" == true ]]; then
+        print_info ""
+        print_info "Checking for legacy installations..."
+        
+        if [[ -f "$HOME/.local/bin/photo-organizer" ]]; then
+            print_info "Removing legacy user installation..."
+            rm -f "$HOME/.local/bin/photo-organizer"
+            print_success "Removed ~/.local/bin/photo-organizer"
+        fi
+        
+        if [[ -f "/usr/local/bin/photo-organizer" ]]; then
+            print_info "Removing legacy global installation (requires sudo)..."
+            sudo rm -f "/usr/local/bin/photo-organizer" 2>/dev/null && print_success "Removed /usr/local/bin/photo-organizer" || print_warning "Could not remove global installation"
+        fi
     fi
     
     print_info ""
     print_success "Uninstallation complete!"
     print_info ""
-    print_warning "Note: This doesn't remove PATH entries from shell rc files."
-    print_info "You may want to manually remove them if no longer needed."
+    print_info "photo-organizer has been completely removed from your system."
+    
+    if [[ "$remove_legacy" == false ]] && ([[ -f "$HOME/.local/bin/photo-organizer" ]] || [[ -f "/usr/local/bin/photo-organizer" ]]); then
+        print_warning "Legacy wrapper scripts may still exist."
+        print_info "Run: $0 --force  to remove them as well."
+    fi
 }
 
 # Run main function
