@@ -177,16 +177,6 @@ uv run black .
 uv run ruff check .
 ```
 
-## Migration from Old Scripts
-
-This replaces your existing `arruma_nomes.sh` and `arruma_arquivos.py` scripts with:
-- Better safety (checksums instead of file size comparison)
-- Python EXIF reading (no `exiftool` dependency)
-- Comprehensive testing
-- Better duplicate handling
-- Proper logging
-- CLI interface
-
 ## License
 
 MIT License - feel free to modify and share!

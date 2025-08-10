@@ -5,16 +5,18 @@ Main entry point for photo organizer
 
 import click
 import logging
+import json
 from pathlib import Path
 from typing import List
 
 from .organizer import PhotoOrganizer
 from .config import Config
 from .logger import setup_logger
+from .directory_config import DirectoryConfigManager, DirectoryConfig, BackupDriveConfig, GooglePhotosConfig
 
 
-@click.command()
-@click.argument("input_dir", type=click.Path(exists=True, path_type=Path), default=".")
+@click.group(invoke_without_command=True)
+@click.argument("input_dir", type=click.Path(exists=True, path_type=Path), default=".", required=False)
 @click.option(
     "-o",
     "--output",
@@ -45,7 +47,21 @@ from .logger import setup_logger
     default=False,
     help="Only rename files in place without moving to date folders",
 )
+@click.option(
+    "--compare-drives",
+    nargs=2,
+    metavar="DRIVE1 DRIVE2",
+    help="Compare files between two backup drives",
+)
+@click.option(
+    "--rescan",
+    is_flag=True,
+    default=False,
+    help="Force rescan of drives (ignore existing scan data)",
+)
+@click.pass_context
 def main(
+    ctx: click.Context,
     input_dir: Path,
     output: Path,
     verbose: bool,
@@ -53,6 +69,8 @@ def main(
     extensions: List[str],
     copy: bool,
     rename_only: bool,
+    compare_drives: tuple,
+    rescan: bool,
 ):
     """Organize photos by renaming based on EXIF data and optionally moving to date-based folders.
 
@@ -62,10 +80,24 @@ def main(
     - Either renaming in place (--rename-only) or moving to archive/YEAR/YEAR-MM/ folder structure
     - Never overwriting existing files
     - Supporting dry-run mode for preview
+    
+    Use 'photo-organizer config --help' to manage per-directory configurations.
     """
     # Setup logging
     log_level = logging.DEBUG if verbose else logging.INFO
     logger = setup_logger(level=log_level)
+    
+    # Handle drive comparison
+    if compare_drives:
+        from .drive_comparison import compare_backup_drives
+        drive1, drive2 = compare_drives
+        compare_backup_drives(Path(drive1), Path(drive2), logger, force_rescan=rescan)
+        return 0
+    
+    # If no subcommand is provided, run the main photo organization
+    if ctx.invoked_subcommand is None:
+        if input_dir is None:
+            input_dir = Path(".")
 
     # Create configuration
     config = Config(
