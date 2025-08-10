@@ -27,6 +27,7 @@ def sample_config(temp_dir):
         extensions=['jpg', 'jpeg', 'png'],
         dry_run=False,
         copy_mode=False,
+        rename_only=False,
         verify_checksums=True
     )
 

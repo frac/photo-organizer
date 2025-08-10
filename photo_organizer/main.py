@@ -39,6 +39,12 @@ from .logger import setup_logger
     default=False,
     help="Copy files instead of moving them (safer)",
 )
+@click.option(
+    "--rename-only",
+    is_flag=True,
+    default=False,
+    help="Only rename files in place without moving to date folders",
+)
 def main(
     input_dir: Path,
     output: Path,
@@ -46,13 +52,14 @@ def main(
     dry_run: bool,
     extensions: List[str],
     copy: bool,
+    rename_only: bool,
 ):
-    """Organize photos by renaming based on EXIF data and moving to date-based folders.
+    """Organize photos by renaming based on EXIF data and optionally moving to date-based folders.
 
     This tool safely processes photos by:
     - Reading EXIF creation date from photos
     - Renaming to YYYY-MM-DD_HH-MM-SS format
-    - Moving to archive/YEAR/YEAR-MM/ folder structure
+    - Either renaming in place (--rename-only) or moving to archive/YEAR/YEAR-MM/ folder structure
     - Never overwriting existing files
     - Supporting dry-run mode for preview
     """
@@ -70,6 +77,7 @@ def main(
         ),
         dry_run=dry_run,
         copy_mode=copy,
+        rename_only=rename_only,
     )
 
     # Initialize organizer
@@ -79,7 +87,8 @@ def main(
         # Process photos
         logger.info(f"Processing photos in: {input_dir}")
         logger.info(f"Output directory: {output}")
-        logger.info(f"Mode: {'DRY RUN' if dry_run else 'COPY' if copy else 'MOVE'}")
+        mode = 'DRY RUN' if dry_run else 'RENAME ONLY' if rename_only else 'COPY' if copy else 'MOVE'
+        logger.info(f"Mode: {mode}")
 
         result = organizer.process_directory(input_dir)
 

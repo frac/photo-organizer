@@ -99,16 +99,18 @@ class PhotoOrganizer:
     
     def _generate_target_path(self, original_path: Path, creation_date: datetime) -> Path:
         """Generate target path based on creation date"""
-        year = creation_date.strftime("%Y")
-        month = creation_date.strftime("%m")
-        
         # Create filename: YYYY-MM-DD_HH-MM-SS.ext
         filename = creation_date.strftime("%Y-%m-%d_%H-%M-%S") + original_path.suffix.lower()
         
-        # Create directory structure: archive/YEAR/YEAR_MONTH/
-        target_dir = self.config.output_dir / f"{year}" / f"{year}_{month}"
-        
-        return target_dir / filename
+        if self.config.rename_only:
+            # Rename in place - same directory as original
+            return original_path.parent / filename
+        else:
+            # Move to archive structure
+            year = creation_date.strftime("%Y")
+            month = creation_date.strftime("%m")
+            target_dir = self.config.output_dir / f"{year}" / f"{year}_{month}"
+            return target_dir / filename
     
     def _find_safe_target_path(self, target_path: Path) -> Path:
         """Find a safe target path that doesn't overwrite existing files"""
@@ -201,9 +203,14 @@ class PhotoOrganizer:
             file_size = file_path.stat().st_size  # Get size before moving the file
             result['checksum'] = checksum
             
-            # Perform the operation (move/copy) SAFELY
+            # Perform the operation (rename/move/copy) SAFELY
             if not self.config.dry_run:
-                if self.config.copy_mode:
+                if self.config.rename_only:
+                    success = self.file_ops.safe_rename(file_path, target_path, verify=self.config.verify_checksums)
+                    if not success:
+                        raise ValueError(f"Safe rename failed: {file_path} -> {target_path}")
+                    result['action'] = 'renamed'
+                elif self.config.copy_mode:
                     success = self.file_ops.safe_copy(file_path, target_path, verify=self.config.verify_checksums)
                     if not success:
                         raise ValueError(f"Safe copy failed: {file_path} -> {target_path}")
@@ -295,13 +302,17 @@ class PhotoOrganizer:
             result = self.process_file(file_path)
             
             if result['success']:
-                if result['action'] in ['moved', 'copied', 'dry_run']:
+                if result['action'] in ['moved', 'copied', 'renamed', 'dry_run']:
                     results['processed'] += 1
                     action_msg = result['action'].replace('_', ' ').upper()
                     target_path = Path(result['target_path'])
-                    # Show relative path from archive root for clarity
-                    relative_target = target_path.relative_to(self.config.output_dir)
-                    self.logger.info(f"{action_msg}: {file_path.name} -> {relative_target}")
+                    if self.config.rename_only or result['action'] == 'renamed':
+                        # For rename only, show just the filename change
+                        self.logger.info(f"{action_msg}: {file_path.name} -> {target_path.name}")
+                    else:
+                        # Show relative path from archive root for clarity
+                        relative_target = target_path.relative_to(self.config.output_dir)
+                        self.logger.info(f"{action_msg}: {file_path.name} -> {relative_target}")
             else:
                 if result['reason'] in ['duplicate', 'already_processed']:
                     results['duplicates'] += 1

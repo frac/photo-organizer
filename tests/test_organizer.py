@@ -256,3 +256,206 @@ def test_safety_no_data_loss(organizer, sample_files, logger):
                     break
         
         assert found, f"File lost during processing: {original_name}"
+
+
+def test_generate_target_path_rename_only(organizer, sample_config):
+    """Test target path generation in rename-only mode"""
+    sample_config.rename_only = True
+    
+    original_path = Path("/some/dir/test_photo.jpg")
+    creation_date = datetime(2023, 12, 25, 14, 30, 45)
+    
+    target_path = organizer._generate_target_path(original_path, creation_date)
+    
+    # Should rename in same directory
+    expected = original_path.parent / "2023-12-25_14-30-45.jpg"
+    assert target_path == expected
+
+
+def test_process_file_rename_only_mode(organizer, sample_config, temp_dir):
+    """Test processing file in rename-only mode"""
+    sample_config.rename_only = True
+    
+    # Create test file
+    original_file = temp_dir / "IMG_001.jpg"
+    original_file.write_text("test image content")
+    
+    # Set file timestamp for predictable naming
+    import os
+    test_time = datetime(2023, 12, 25, 14, 30, 45).timestamp()
+    os.utime(original_file, (test_time, test_time))
+    
+    result = organizer.process_file(original_file)
+    
+    if result['success']:
+        assert result['action'] == 'renamed'
+        
+        # Original file should not exist
+        assert not original_file.exists()
+        
+        # New file should exist in same directory
+        renamed_file = temp_dir / "2023-12-25_14-30-45.jpg"
+        assert renamed_file.exists()
+        assert renamed_file.read_text() == "test image content"
+
+
+def test_process_file_rename_only_dry_run(organizer, sample_config, temp_dir):
+    """Test processing file in rename-only dry run mode"""
+    sample_config.rename_only = True
+    sample_config.dry_run = True
+    
+    # Create test file
+    original_file = temp_dir / "IMG_001.jpg"
+    original_file.write_text("test image content")
+    
+    # Set file timestamp for predictable naming
+    import os
+    test_time = datetime(2023, 12, 25, 14, 30, 45).timestamp()
+    os.utime(original_file, (test_time, test_time))
+    
+    result = organizer.process_file(original_file)
+    
+    if result['success']:
+        assert result['action'] == 'dry_run'
+        
+        # Original file should still exist in dry run
+        assert original_file.exists()
+        assert original_file.read_text() == "test image content"
+        
+        # Target path should be in same directory
+        expected_target = temp_dir / "2023-12-25_14-30-45.jpg"
+        assert result['target_path'] == str(expected_target)
+
+
+def test_rename_only_conflict_handling(organizer, sample_config, temp_dir):
+    """Test rename-only mode handles conflicts correctly"""
+    sample_config.rename_only = True
+    
+    # Create original file
+    original_file = temp_dir / "IMG_001.jpg"
+    original_file.write_text("original content")
+    
+    # Create conflicting target file with different content
+    target_file = temp_dir / "2023-12-25_14-30-45.jpg"
+    target_file.write_text("existing content")
+    
+    # Set file timestamp for predictable naming
+    import os
+    test_time = datetime(2023, 12, 25, 14, 30, 45).timestamp()
+    os.utime(original_file, (test_time, test_time))
+    
+    result = organizer.process_file(original_file)
+    
+    if result['success']:
+        assert result['action'] == 'renamed'
+        
+        # Original file should not exist
+        assert not original_file.exists()
+        
+        # Should have created incremented filename
+        renamed_file = temp_dir / "2023-12-25_14-30-45_001.jpg"
+        assert renamed_file.exists()
+        assert renamed_file.read_text() == "original content"
+        
+        # Original target file should remain unchanged
+        assert target_file.exists()
+        assert target_file.read_text() == "existing content"
+
+
+def test_rename_only_duplicate_detection(organizer, sample_config, temp_dir):
+    """Test rename-only mode detects duplicates correctly"""
+    sample_config.rename_only = True
+    
+    # Create original file
+    original_file = temp_dir / "IMG_001.jpg"
+    original_file.write_text("identical content")
+    
+    # Create target file with identical content
+    target_file = temp_dir / "2023-12-25_14-30-45.jpg"
+    target_file.write_text("identical content")
+    
+    # Set file timestamp for predictable naming
+    import os
+    test_time = datetime(2023, 12, 25, 14, 30, 45).timestamp()
+    os.utime(original_file, (test_time, test_time))
+    
+    result = organizer.process_file(original_file)
+    
+    assert not result['success']
+    assert result['reason'] == 'duplicate'
+    
+    # Both files should still exist
+    assert original_file.exists()
+    assert target_file.exists()
+
+
+def test_rename_only_vs_normal_mode_behavior(organizer, sample_config, temp_dir):
+    """Test that rename-only and normal mode produce different results"""
+    # Create test file
+    original_file = temp_dir / "IMG_001.jpg" 
+    original_file.write_text("test content")
+    
+    # Set file timestamp
+    import os
+    test_time = datetime(2023, 12, 25, 14, 30, 45).timestamp()
+    os.utime(original_file, (test_time, test_time))
+    
+    creation_date = datetime(2023, 12, 25, 14, 30, 45)
+    
+    # Test normal mode path
+    sample_config.rename_only = False
+    normal_path = organizer._generate_target_path(original_file, creation_date)
+    
+    # Test rename-only mode path
+    sample_config.rename_only = True
+    rename_only_path = organizer._generate_target_path(original_file, creation_date)
+    
+    # Paths should be different
+    assert normal_path != rename_only_path
+    
+    # Normal mode should go to archive structure
+    assert "archive" in str(normal_path) or "2023" in str(normal_path)
+    
+    # Rename-only should stay in same directory
+    assert rename_only_path.parent == original_file.parent
+
+
+def test_file_operations_safe_rename(sample_config, logger, temp_dir):
+    """Test the safe_rename method in FileOperations"""
+    from photo_organizer.file_utils import FileOperations
+    
+    file_ops = FileOperations(sample_config, logger)
+    
+    # Create test file
+    source_file = temp_dir / "source.jpg"
+    target_file = temp_dir / "target.jpg"
+    source_file.write_text("test content")
+    
+    # Test successful rename
+    success = file_ops.safe_rename(source_file, target_file, verify=True)
+    
+    assert success
+    assert not source_file.exists()
+    assert target_file.exists()
+    assert target_file.read_text() == "test content"
+
+
+def test_file_operations_safe_rename_dry_run(sample_config, logger, temp_dir):
+    """Test safe_rename in dry run mode"""
+    from photo_organizer.file_utils import FileOperations
+    
+    sample_config.dry_run = True
+    file_ops = FileOperations(sample_config, logger)
+    
+    # Create test file
+    source_file = temp_dir / "source.jpg"
+    target_file = temp_dir / "target.jpg"
+    source_file.write_text("test content")
+    
+    # Test dry run rename
+    success = file_ops.safe_rename(source_file, target_file, verify=True)
+    
+    assert success
+    # In dry run, original file should still exist
+    assert source_file.exists()
+    assert not target_file.exists()

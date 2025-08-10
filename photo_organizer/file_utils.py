@@ -88,6 +88,35 @@ class FileOperations:
             self.logger.error(f"Move failed {source} -> {target}: {e}")
             return False
     
+    def safe_rename(self, source: Path, target: Path, verify: bool = True) -> bool:
+        """Safely rename file in same directory with optional verification"""
+        try:
+            if self.config.dry_run:
+                self.logger.info(f"DRY RUN: Would rename {source} -> {target}")
+                return True
+            
+            # Get original checksum if verification is enabled
+            original_checksum = None
+            if verify:
+                original_checksum = self._calculate_checksum(source)
+            
+            # Use Python's rename which is atomic on most filesystems
+            source.rename(target)
+            
+            # Verify rename if requested
+            if verify and original_checksum:
+                new_checksum = self._calculate_checksum(target)
+                if original_checksum != new_checksum:
+                    # This shouldn't happen with atomic rename, but check anyway
+                    raise ValueError(f"Rename verification failed: checksums don't match")
+            
+            self.logger.debug(f"Successfully renamed: {source} -> {target}")
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Rename failed {source} -> {target}: {e}")
+            return False
+    
     def _calculate_checksum(self, file_path: Path, algorithm: str = 'sha256') -> str:
         """Calculate file checksum"""
         if algorithm == 'sha256':

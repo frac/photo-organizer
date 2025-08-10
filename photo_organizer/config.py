@@ -13,6 +13,7 @@ class Config:
     extensions: List[str] = None
     dry_run: bool = False
     copy_mode: bool = False  # If True, copy instead of move
+    rename_only: bool = False  # If True, rename in place without moving
     create_backups: bool = False
     verify_checksums: bool = True
     max_duplicate_suffix: int = 999  # photo_001.jpg, photo_002.jpg, etc.
