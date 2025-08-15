@@ -16,6 +16,8 @@ dev = [
     "pytest-cov>=4.0.0",
     "black>=23.0.0",
     "ruff>=0.1.0",
+    "mypy>=1.0.0",
+    "types-Pillow>=10.0.0",
 ]
 
 [project.scripts]
@@ -41,10 +43,31 @@ line-length = 88
 testpaths = ["tests"]
 addopts = "--cov=photo_organizer --cov-report=term-missing"
 
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+
 [dependency-groups]
 dev = [
     "black>=25.1.0",
     "pytest>=8.4.1",
     "pytest-cov>=6.2.1",
     "ruff>=0.12.8",
+    "mypy>=1.8.0",
+    "types-Pillow>=10.0.0",
 ]
