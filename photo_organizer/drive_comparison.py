@@ -4,13 +4,11 @@ import hashlib
 import sqlite3
 import logging
 from pathlib import Path
-from typing import Dict, List, Tuple, Set
-from collections import defaultdict
+from typing import Dict, List, Tuple, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 import time
 import signal
-import sys
 import shutil
 import os
 
@@ -48,7 +46,7 @@ class DriveScanner:
             self.logger.error(f"Error reading {file_path}: {e}")
             return ""
 
-    def cancel(self):
+    def cancel(self) -> None:
         """Cancel ongoing operations"""
         self._cancelled.set()
 
@@ -89,7 +87,7 @@ class DriveScanner:
 
         return batch_data
 
-    def scan_drive_to_db(self, drive_path: Path, db_path: Path = None) -> int:
+    def scan_drive_to_db(self, drive_path: Path, db_path: Optional[Path] = None) -> int:
         """Scan a drive and store file info in database
 
         Returns number of files scanned
@@ -154,7 +152,6 @@ class DriveScanner:
             try:
                 file_stat = file_path.stat()
                 file_size = file_stat.st_size
-                file_mtime = file_stat.st_mtime
 
                 existing = existing_files.get(str(file_path))
                 if existing and existing["size"] == file_size:
@@ -241,7 +238,7 @@ class DriveScanner:
             )
             conn.executemany(
                 """
-                INSERT OR REPLACE INTO drive_files 
+                INSERT OR REPLACE INTO drive_files
                 (relative_path, full_path, file_size, checksum, drive_path)
                 VALUES (?, ?, ?, ?, ?)
             """,
@@ -290,13 +287,13 @@ class DriveScanner:
         full_path: str,
         file_size: int,
         checksum: str,
-    ):
+    ) -> None:
         """Add a single file to the drive database"""
         try:
             conn = sqlite3.connect(db_path)
             conn.execute(
                 """
-                INSERT OR REPLACE INTO drive_files 
+                INSERT OR REPLACE INTO drive_files
                 (relative_path, full_path, file_size, checksum, drive_path, scanned_at)
                 VALUES (?, ?, ?, ?, ?, datetime('now'))
             """,
@@ -316,7 +313,7 @@ class DriveSynchronizer:
         self._lock = threading.Lock()
         self._cancelled = threading.Event()
 
-    def cancel(self):
+    def cancel(self) -> None:
         """Cancel ongoing operations"""
         self._cancelled.set()
 
@@ -352,7 +349,7 @@ class DriveSynchronizer:
                 if source_checksum != target_checksum:
                     # Remove corrupted copy
                     target_path.unlink(missing_ok=True)
-                    raise ValueError(f"Copy verification failed: checksums don't match")
+                    raise ValueError("Copy verification failed: checksums don't match")
 
             return True
 
@@ -508,7 +505,7 @@ def compare_backup_drives(
     drive2_path: Path,
     logger: logging.Logger,
     force_rescan: bool = False,
-):
+) -> None:
     """Compare two backup drives and show differences"""
 
     logger.info("=== Backup Drive Comparison ===")
@@ -526,7 +523,7 @@ def compare_backup_drives(
     scanner = DriveScanner(logger)
 
     # Set up signal handler for graceful cancellation
-    def signal_handler(signum, frame):
+    def signal_handler(signum: int, frame) -> None:
         logger.info("\nReceived interrupt signal (Ctrl+C). Cancelling operations...")
         scanner.cancel()
 
@@ -592,7 +589,7 @@ def compare_backup_drives(
         drive1_files = scanner.get_drive_files(db1_path)
         drive2_files = scanner.get_drive_files(db2_path)
 
-        logger.info(f"\n=== Comparison Results ===")
+        logger.info("\n=== Comparison Results ===")
         logger.info(f"Drive 1: {len(drive1_files)} files")
         logger.info(f"Drive 2: {len(drive2_files)} files")
 
@@ -664,11 +661,13 @@ def compare_backup_drives(
         if different_files:
             for diff in different_files[:10]:  # Show first 10
                 logger.info(f"  {diff['path']}")
+                checksum1 = str(diff['drive1']['checksum'])
+                checksum2 = str(diff['drive2']['checksum'])
                 logger.info(
-                    f"    Drive 1: {diff['drive1']['size']:,} bytes, checksum: {diff['drive1']['checksum'][:16]}..."
+                    f"    Drive 1: {diff['drive1']['size']:,} bytes, checksum: {checksum1[:16]}..."
                 )
                 logger.info(
-                    f"    Drive 2: {diff['drive2']['size']:,} bytes, checksum: {diff['drive2']['checksum'][:16]}..."
+                    f"    Drive 2: {diff['drive2']['size']:,} bytes, checksum: {checksum2[:16]}..."
                 )
             if len(different_files) > 10:
                 logger.info(f"  ... and {len(different_files) - 10} more files")
@@ -681,7 +680,7 @@ def compare_backup_drives(
             len(only_in_drive1) + len(only_in_drive2) + len(different_files)
         )
 
-        logger.info(f"\n=== Summary ===")
+        logger.info("\n=== Summary ===")
         logger.info(f"Total unique files: {total_files}")
         logger.info(f"Identical files: {len(identical_files)}")
         logger.info(f"Files needing sync: {files_needing_sync}")
@@ -693,11 +692,11 @@ def compare_backup_drives(
 
             # Suggest sync commands
             if only_in_drive1:
-                logger.info(f"\nTo copy missing files from Drive 1 to Drive 2:")
+                logger.info("\nTo copy missing files from Drive 1 to Drive 2:")
                 logger.info(f"  # Copy {len(only_in_drive1)} files")
 
             if only_in_drive2:
-                logger.info(f"\nTo copy missing files from Drive 2 to Drive 1:")
+                logger.info("\nTo copy missing files from Drive 2 to Drive 1:")
                 logger.info(f"  # Copy {len(only_in_drive2)} files")
 
     except KeyboardInterrupt:
@@ -729,7 +728,7 @@ def sync_backup_drives(
     original_sigint = signal.signal(signal.SIGINT, signal.SIG_IGN)
     original_sigterm = signal.signal(signal.SIGTERM, signal.SIG_IGN)
 
-    def signal_handler(signum, frame):
+    def signal_handler(signum: int, frame) -> None:
         logger.info(f"Received signal {signum}, shutting down gracefully...")
         scanner.cancel()
         synchronizer.cancel()
@@ -853,11 +852,13 @@ def sync_backup_drives(
         if different_files:
             for diff in different_files[:10]:  # Show first 10
                 logger.info(f"  {diff['path']}")
+                checksum1 = str(diff['drive1']['checksum'])
+                checksum2 = str(diff['drive2']['checksum'])
                 logger.info(
-                    f"    Drive 1: {diff['drive1']['size']:,} bytes, checksum: {diff['drive1']['checksum'][:16]}..."
+                    f"    Drive 1: {diff['drive1']['size']:,} bytes, checksum: {checksum1[:16]}..."
                 )
                 logger.info(
-                    f"    Drive 2: {diff['drive2']['size']:,} bytes, checksum: {diff['drive2']['checksum'][:16]}..."
+                    f"    Drive 2: {diff['drive2']['size']:,} bytes, checksum: {checksum2[:16]}..."
                 )
             if len(different_files) > 10:
                 logger.info(f"  ... and {len(different_files) - 10} more files")
@@ -870,7 +871,7 @@ def sync_backup_drives(
             len(only_in_drive1) + len(only_in_drive2) + len(different_files)
         )
 
-        logger.info(f"\n=== Summary ===")
+        logger.info("\n=== Summary ===")
         logger.info(f"Total unique files: {total_files}")
         logger.info(f"Files needing sync: {files_needing_sync}")
 
@@ -888,7 +889,7 @@ def sync_backup_drives(
             )
 
             if sync_stats:
-                logger.info(f"\n=== Synchronization Complete ===")
+                logger.info("\n=== Synchronization Complete ===")
                 logger.info(
                     f"Files copied to Drive 1: {sync_stats['files_copied_to_drive1']}"
                 )
@@ -1036,7 +1037,7 @@ def backup_archive_to_drives(
     original_sigint = signal.signal(signal.SIGINT, signal.SIG_IGN)
     original_sigterm = signal.signal(signal.SIGTERM, signal.SIG_IGN)
 
-    def signal_handler(signum, frame):
+    def signal_handler(signum: int, frame) -> None:
         logger.info(f"Received signal {signum}, shutting down gracefully...")
         scanner.cancel()
         synchronizer.cancel()
@@ -1215,7 +1216,7 @@ def backup_archive_to_drives(
                 logger.warning(f"Some files failed to copy to {drive_path}")
 
         # Summary
-        logger.info(f"\n=== Backup Summary ===")
+        logger.info("\n=== Backup Summary ===")
         logger.info(f"Total files copied: {total_files_copied}")
         logger.info(f"Total bytes copied: {total_bytes_copied:,}")
 

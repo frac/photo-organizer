@@ -24,9 +24,9 @@ dev = [
 photo-organizer = "photo_organizer.main:main"
 
 [project.urls]
-Homepage = "https://github.com/user/photo-organizer"
-Repository = "https://github.com/user/photo-organizer"
-Issues = "https://github.com/user/photo-organizer/issues"
+Homepage = "https://github.com/frac/photo-organizer"
+Repository = "https://github.com/frac/photo-organizer"
+Issues = "https://github.com/frac/photo-organizer/issues"
 
 [build-system]
 requires = ["hatchling"]
@@ -34,6 +34,8 @@ build-backend = "hatchling.build"
 
 [tool.ruff]
 line-length = 88
+
+[tool.ruff.lint]
 select = ["E", "F", "W", "C", "N"]
 
 [tool.black]
@@ -41,7 +43,7 @@ line-length = 88
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--cov=photo_organizer --cov-report=term-missing"
+addopts = "-v"
 
 [tool.mypy]
 python_version = "3.12"
@@ -64,9 +66,9 @@ disallow_untyped_defs = false
 
 [dependency-groups]
 dev = [
-    "black>=25.1.0",
     "pytest>=8.4.1",
     "pytest-cov>=6.2.1",
+    "black>=25.1.0",
     "ruff>=0.12.8",
     "mypy>=1.8.0",
     "types-Pillow>=10.0.0",

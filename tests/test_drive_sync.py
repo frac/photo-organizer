@@ -6,7 +6,6 @@ import shutil
 from pathlib import Path
 from unittest.mock import Mock, patch
 import sqlite3
-import hashlib
 
 from photo_organizer.drive_comparison import (
     DriveScanner,

@@ -5,19 +5,12 @@ Main entry point for photo organizer
 
 import click
 import logging
-import json
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 from .organizer import PhotoOrganizer
 from .config import Config
 from .logger import setup_logger
-from .directory_config import (
-    DirectoryConfigManager,
-    DirectoryConfig,
-    BackupDriveConfig,
-    GooglePhotosConfig,
-)
 
 
 @click.command()
@@ -83,7 +76,7 @@ from .directory_config import (
     help="Backup local archive to one or more backup drives. Specify drive root paths (e.g., /media/drive1, /mnt/backup), not subdirectories. The tool will automatically detect existing archive directories or create them. Can be specified multiple times.",
 )
 def main(
-    input_dir: Path,
+    input_dir: Optional[Path],
     output: Path,
     verbose: bool,
     dry_run: bool,
@@ -94,7 +87,7 @@ def main(
     sync_drives: tuple,
     rescan: bool,
     backup_to_drives: List[str],
-):
+) -> int:
     """Organize photos by renaming based on EXIF data and optionally moving to date-based folders.
 
     This tool safely processes photos by:

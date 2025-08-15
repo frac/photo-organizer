@@ -35,7 +35,7 @@ dev:
 
 test:
 	@echo "Running tests..."
-	uv run pytest -v
+	uv run pytest
 
 test-coverage:
 	@echo "Running tests with coverage..."
